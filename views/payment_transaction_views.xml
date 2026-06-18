@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Extend payment.transaction form: tambah QRIS info + actions -->
+    <record id="payment_transaction_form_qris_cod" model="ir.ui.view">
+        <field name="name">payment.transaction.form.qris.cod</field>
+        <field name="model">payment.transaction</field>
+        <field name="inherit_id" ref="payment.payment_transaction_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <field name="provider_id" invisible="1"/>
+                <group string="QRIS Dinamis Detail"
+                       invisible="provider_id.code != 'qris_dinamis'">
+                    <field name="qris_amount"/>
+                    <field name="qris_state"/>
+                    <field name="qris_expires_at"/>
+                    <field name="qris_user_confirmed_at"/>
+                    <field name="qris_admin_verified_by"/>
+                    <field name="qris_admin_verified_at"/>
+                    <field name="qris_reject_reason"/>
+                    <field name="qris_payload" widget="text"/>
+                    <field name="qris_qr_image" widget="image"/>
+                    <field name="qris_matched_mutation_id"/>
+                </group>
+                <group string="COD Detail"
+                       invisible="provider_id.code != 'cod'">
+                    <field name="cod_state"/>
+                </group>
+            </xpath>
+            <xpath expr="//header" position="inside">
+                <!-- QRIS: Admin verify paid (dari pending_verification atau pending) -->
+                <button name="action_qris_mark_paid" type="object"
+                        string="Verify Paid (QRIS)"
+                        invisible="provider_id.code != 'qris_dinamis' or qris_state == 'paid'"
+                        class="btn-primary"
+                        confirm="Konfirmasi pembayaran QRIS ini valid? Sale order akan di-confirm dan invoice di-post."/>
+                <!-- QRIS: Admin reject (dari pending_verification) -->
+                <button name="action_qris_reject" type="object"
+                        string="Reject (QRIS)"
+                        invisible="provider_id.code != 'qris_dinamis' or qris_state in ('paid', 'rejected', 'expired', 'cancelled')"
+                        class="btn-danger"
+                        confirm="Tolak pembayaran QRIS ini? Sale order akan di-cancel."/>
+                <!-- COD actions -->
+                <button name="action_cod_mark_delivered" type="object"
+                        string="Mark Delivered"
+                        invisible="provider_id.code != 'cod' or cod_state != 'waiting_delivery'"
+                        class="btn-secondary"/>
+                <button name="action_cod_mark_paid" type="object"
+                        string="Cash Received (COD)"
+                        invisible="provider_id.code != 'cod' or cod_state != 'delivered'"
+                        class="btn-primary"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Extend payment.transaction tree: tambah qris_state & amount columns -->
+    <record id="payment_transaction_tree_qris_cod" model="ir.ui.view">
+        <field name="name">payment.transaction.tree.qris.cod</field>
+        <field name="model">payment.transaction</field>
+        <field name="inherit_id" ref="payment.payment_transaction_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='state']" position="after">
+                <field name="qris_state" optional="show"
+                       decoration-success="qris_state == 'paid'"
+                       decoration-info="qris_state == 'pending_verification'"
+                       decoration-warning="qris_state == 'pending'"
+                       decoration-danger="qris_state in ('rejected', 'expired', 'cancelled')"/>
+                <field name="cod_state" optional="hide"/>
+                <field name="qris_amount" optional="show"/>
+                <field name="qris_user_confirmed_at" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Search filter: filter by qris_state -->
+    <record id="payment_transaction_search_qris_cod" model="ir.ui.view">
+        <field name="name">payment.transaction.search.qris.cod</field>
+        <field name="model">payment.transaction</field>
+        <field name="inherit_id" ref="payment.payment_transaction_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter name="filter_qris_pending_verification"
+                        string="QRIS: Perlu Verifikasi"
+                        domain="[('provider_id.code', '=', 'qris_dinamis'), ('qris_state', '=', 'pending_verification')]"/>
+                <filter name="filter_qris_pending"
+                        string="QRIS: Belum Konfirmasi Bayar"
+                        domain="[('provider_id.code', '=', 'qris_dinamis'), ('qris_state', '=', 'pending')]"/>
+                <filter name="filter_qris_paid"
+                        string="QRIS: Paid"
+                        domain="[('provider_id.code', '=', 'qris_dinamis'), ('qris_state', '=', 'paid')]"/>
+                <filter name="filter_qris_rejected"
+                        string="QRIS: Rejected"
+                        domain="[('provider_id.code', '=', 'qris_dinamis'), ('qris_state', '=', 'rejected')]"/>
+                <separator/>
+                <filter name="filter_cod_waiting"
+                        string="COD: Waiting Delivery"
+                        domain="[('provider_id.code', '=', 'cod'), ('cod_state', '=', 'waiting_delivery')]"/>
+                <filter name="filter_cod_delivered"
+                        string="COD: Delivered"
+                        domain="[('provider_id.code', '=', 'cod'), ('cod_state', '=', 'delivered')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_qris_state" string="QRIS State"
+                            context="{'group_by': 'qris_state'}"/>
+                    <filter name="group_cod_state" string="COD State"
+                            context="{'group_by': 'cod_state'}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+</odoo>

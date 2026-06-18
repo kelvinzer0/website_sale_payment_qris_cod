@@ -1,0 +1,65 @@
+/* QRIS Checkout - polling status + countdown timer */
+.odoo-qris-checkout {
+    /* Constants */
+    --qris-primary: #6E5BFF;
+    --qris-danger: #DC3545;
+    --qris-warning: #FFC107;
+    --qris-success: #28A745;
+}
+
+.qris-qr-img {
+    max-width: 320px;
+    width: 100%;
+    height: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    background: white;
+}
+
+.qris-countdown {
+    text-align: center;
+    margin-top: 12px;
+    margin-bottom: 12px;
+}
+
+.qris-countdown-timer {
+    font-family: monospace;
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: var(--qris-danger);
+    margin-left: 8px;
+}
+
+.qris-countdown.expired .qris-countdown-timer {
+    color: var(--qris-danger);
+}
+
+.qris-status-box {
+    text-align: center;
+    padding: 12px;
+    border-radius: 6px;
+    background: #f8f9fa;
+    margin-top: 8px;
+}
+
+.qris-status-box.paid {
+    background: #d4edda;
+    color: var(--qris-success);
+    font-weight: bold;
+}
+
+.qris-status-box.expired {
+    background: #f8d7da;
+    color: var(--qris-danger);
+    font-weight: bold;
+}
+
+/* Spinner */
+@keyframes qris-spin {
+    to { transform: rotate(360deg); }
+}
+
+.qris-status-box .spinner-border {
+    animation: qris-spin 0.75s linear infinite;
+}

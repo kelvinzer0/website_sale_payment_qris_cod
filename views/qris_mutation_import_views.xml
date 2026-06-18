@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree view: list mutations -->
+    <record id="qris_mutation_import_tree" model="ir.ui.view">
+        <field name="name">qris.mutation.import.tree</field>
+        <field name="model">qris.mutation.import</field>
+        <field name="arch" type="xml">
+            <tree decoration-success="state == 'matched'"
+                  decoration-danger="state == 'error'"
+                  decoration-muted="state == 'unmatched'">
+                <field name="mutation_date"/>
+                <field name="amount"/>
+                <field name="amount_str"/>
+                <field name="reference"/>
+                <field name="description"/>
+                <field name="state"/>
+                <field name="matched_transaction_id"/>
+                <button name="action_try_match" type="object"
+                        string="Retry Match"
+                        invisible="state == 'matched'"
+                        class="btn-secondary"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form view: detail mutation -->
+    <record id="qris_mutation_import_form" model="ir.ui.view">
+        <field name="name">qris.mutation.import.form</field>
+        <field name="model">qris.mutation.import</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_try_match" type="object"
+                            string="Retry Match"
+                            invisible="state == 'matched'"
+                            class="btn-primary"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="mutation_date"/>
+                            <field name="amount"/>
+                            <field name="amount_str"/>
+                            <field name="state"/>
+                            <field name="import_batch_id"/>
+                        </group>
+                        <group>
+                            <field name="reference"/>
+                            <field name="matched_transaction_id"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <group string="Description">
+                        <field name="description" nolabel="1"/>
+                    </group>
+                    <group string="Error Message" invisible="state != 'error'">
+                        <field name="error_message" nolabel="1"/>
+                    </group>
+                    <group string="Raw CSV Line">
+                        <field name="raw_line" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action: list mutations -->
+    <record id="action_qris_mutation_import" model="ir.actions.act_window">
+        <field name="name">QRIS Mutation Imports</field>
+        <field name="res_model">qris.mutation.import</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_group_by_state': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Upload mutation CSV untuk auto-match pembayaran QRIS
+            </p>
+        </field>
+    </record>
+
+    <!-- Search view dengan filter -->
+    <record id="qris_mutation_import_search" model="ir.ui.view">
+        <field name="name">qris.mutation.import.search</field>
+        <field name="model">qris.mutation.import</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="reference"/>
+                <field name="description"/>
+                <field name="amount_str"/>
+                <field name="matched_transaction_id"/>
+                <filter string="Unmatched" name="filter_unmatched"
+                        domain="[('state', '=', 'unmatched')]"/>
+                <filter string="Matched" name="filter_matched"
+                        domain="[('state', '=', 'matched')]"/>
+                <filter string="Errors" name="filter_errors"
+                        domain="[('state', '=', 'error')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="State" name="group_by_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="Import Batch" name="group_by_batch"
+                            context="{'group_by': 'import_batch_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Wizard form: upload CSV -->
+    <record id="qris_mutation_import_wizard_form" model="ir.ui.view">
+        <field name="name">qris.mutation.import.wizard.form</field>
+        <field name="model">qris.mutation.import.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <field name="state" invisible="1"/>
+                    <group invisible="state == 'result'">
+                        <group string="Upload CSV Mutation">
+                            <field name="csv_file" filename="csv_filename"/>
+                            <field name="csv_filename" invisible="1"/>
+                            <field name="date_format"/>
+                            <field name="delimiter"/>
+                        </group>
+                        <footer>
+                            <button name="action_import" type="object"
+                                    string="Import &amp; Auto-Match"
+                                    class="btn-primary"/>
+                            <button special="cancel" string="Cancel" class="btn-secondary"/>
+                        </footer>
+                    </group>
+                    <group invisible="state != 'result'">
+                        <group string="Import Result">
+                            <field name="result_total" readonly="1"/>
+                            <field name="result_matched" readonly="1"/>
+                            <field name="result_unmatched" readonly="1"/>
+                            <field name="result_errors" readonly="1"/>
+                        </group>
+                        <footer>
+                            <button name="action_view_mutations" type="object"
+                                    string="View Mutations" class="btn-primary"/>
+                            <button special="cancel" string="Close" class="btn-secondary"/>
+                        </footer>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action: open wizard -->
+    <record id="action_qris_mutation_import_wizard" model="ir.actions.act_window">
+        <field name="name">Upload QRIS Mutation CSV</field>
+        <field name="res_model">qris.mutation.import.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menu: QRIS Management -->
+    <menuitem id="menu_qris_root" name="QRIS Payment" web_icon="heart" sequence="20"/>
+    <menuitem id="menu_qris_mutations" name="Mutations"
+              parent="menu_qris_root" action="action_qris_mutation_import" sequence="10"/>
+    <menuitem id="menu_qris_upload" name="Upload Mutation CSV"
+              parent="menu_qris_root" action="action_qris_mutation_import_wizard" sequence="20"/>
+</odoo>

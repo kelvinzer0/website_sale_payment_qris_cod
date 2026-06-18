@@ -1,0 +1,481 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Halaman QRIS display dengan QR code + tombol 'Saya sudah bayar' (TANPA waktu expired) -->
+    <template id="qris_payment_page" name="QRIS Dinamis Payment">
+        <t t-call="website.layout">
+            <div class="container mt-5 mb-5">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-primary text-white text-center">
+                                <h4 class="mb-0">Scan QRIS untuk Bayar</h4>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="alert alert-info">
+                                    <strong>Total Pembayaran:</strong>
+                                    <div class="h3 text-primary mt-2" t-esc="qris_amount_display"/>
+                                </div>
+                                <div class="qris-qr-wrapper mb-3">
+                                    <img t-if="qris_qr_image"
+                                         t-att-src="'data:image/png;base64,' + qris_qr_image.decode()"
+                                         alt="QRIS QR Code"
+                                         class="img-fluid qris-qr-img"/>
+                                    <p t-else="" class="text-danger">QR image tidak tersedia.</p>
+                                </div>
+                                <p class="text-muted small">
+                                    Buka aplikasi e-wallet/bank apapun (GoPay, OVO, DANA,
+                                    ShopeePay, m-Banking, dll), scan QR di atas,
+                                    pastikan nominalnya <strong t-esc="qris_amount_display"/>.
+                                </p>
+                                <div class="alert alert-success small mb-2">
+                                    <i class="fa fa-info-circle"/> QRIS ini <strong>tidak ada batas waktu</strong>.
+                                    Silakan scan &amp; bayar kapan saja, lalu klik tombol di bawah.
+                                </div>
+                                <div class="qris-status-box" id="qris-status-box">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span>Menunggu pembayaran...</span>
+                                </div>
+                                <hr/>
+                                <form t-att-action="'/payment/qris_dinamis/confirm/' + str(tx.id)"
+                                      method="post" id="qris-confirm-form">
+                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                    <input type="hidden" name="tx_id" t-att-value="tx.id"/>
+                                    <button type="submit"
+                                            class="btn btn-success btn-lg w-100 qris-confirm-btn"
+                                            id="qris-confirm-paid-btn">
+                                        Saya Sudah Bayar
+                                    </button>
+                                    <small class="text-muted d-block mt-2">
+                                        Klik tombol di atas setelah Anda selesai transfer.
+                                        Admin akan memverifikasi pembayaran Anda.
+                                    </small>
+                                </form>
+                            </div>
+                            <div class="card-footer text-center">
+                                <small class="text-muted">Ref: <span t-esc="tx_reference"/></small>
+                                <br/>
+                                <a t-attf-href="/payment/qris_dinamis/cancel/{{ tx.id }}"
+                                   class="btn btn-link btn-sm text-danger mt-2">Batalkan</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- =================== ADMIN VERIFICATION DASHBOARD =================== -->
+    <!-- Halaman dashboard admin: list transaksi yang perlu diverifikasi -->
+    <template id="qris_admin_verification_dashboard" name="QRIS Admin Verification Dashboard">
+        <t t-call="website.layout">
+            <div class="container mt-4 mb-5">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="mb-0">Verifikasi Pembayaran</h2>
+                    <a href="/shop/dashboard" class="btn btn-secondary btn-sm">&#171; Kembali ke Dashboard</a>
+                </div>
+
+                <!-- Tab/pills -->
+                <ul class="nav nav-pills mb-3" id="verification-tabs">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#tab-qris" data-bs-toggle="pill">
+                            QRIS Perlu Verifikasi
+                            <span class="badge bg-danger ms-1" t-esc="len(qris_pending)"/>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#tab-cod" data-bs-toggle="pill">
+                            COD Perlu Dikirim
+                            <span class="badge bg-warning text-dark ms-1" t-esc="len(cod_waiting)"/>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#tab-recent" data-bs-toggle="pill">
+                            Verifikasi Terbaru
+                            <span class="badge bg-secondary ms-1" t-esc="len(recent_verified)"/>
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- TAB: QRIS Perlu Verifikasi -->
+                    <div class="tab-pane fade show active" id="tab-qris">
+                        <t t-if="qris_pending">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Ref</th>
+                                            <th>Customer</th>
+                                            <th class="text-end">Nominal</th>
+                                            <th>User Konfirmasi</th>
+                                            <th>Pesanan</th>
+                                            <th class="text-center">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr t-foreach="qris_pending" t-as="tx">
+                                            <td><code t-esc="tx.reference"/></td>
+                                            <td>
+                                                <strong t-esc="tx.partner_id.name"/>
+                                                <t t-if="tx.partner_id.phone">
+                                                    <br/><small class="text-muted" t-esc="tx.partner_id.phone"/>
+                                                </t>
+                                            </td>
+                                            <td class="text-end">
+                                                <strong t-esc="tx._format_rupiah()"/>
+                                            </td>
+                                            <td>
+                                                <small t-esc="tx.qris_user_confirmed_at"/>
+                                            </td>
+                                            <td>
+                                                <t t-foreach="tx.sale_order_ids" t-as="so">
+                                                    <a t-attf-href="/my/orders/{{ so.id }}" target="_blank">
+                                                        <code t-esc="so.name"/>
+                                                    </a>
+                                                </t>
+                                            </td>
+                                            <td class="text-center">
+                                                <form t-attf-action="/shop/payment_verifications/{{ tx.id }}/verify"
+                                                      method="post" class="d-inline">
+                                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                                    <button type="submit" class="btn btn-success btn-sm"
+                                                            onclick="return confirm('Konfirmasi pembayaran QRIS ini VALID? Pesanan akan diproses.')">
+                                                        <i class="fa fa-check"/> Verify
+                                                    </button>
+                                                </form>
+                                                <button type="button"
+                                                        class="btn btn-danger btn-sm ms-1 qris-reject-btn"
+                                                        t-att-data-tx-id="tx.id"
+                                                        t-att-data-ref="tx.reference">
+                                                    <i class="fa fa-times"/> Reject
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="alert alert-success">
+                                <i class="fa fa-check-circle"/> Tidak ada pembayaran QRIS yang perlu diverifikasi.
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- TAB: COD Perlu Dikirim -->
+                    <div class="tab-pane fade" id="tab-cod">
+                        <t t-if="cod_waiting">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Ref</th>
+                                            <th>Customer</th>
+                                            <th class="text-end">Nominal</th>
+                                            <th>Pesanan</th>
+                                            <th>Tanggal</th>
+                                            <th class="text-center">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr t-foreach="cod_waiting" t-as="tx">
+                                            <td><code t-esc="tx.reference"/></td>
+                                            <td>
+                                                <strong t-esc="tx.partner_id.name"/>
+                                                <t t-if="tx.partner_id.phone">
+                                                    <br/><small class="text-muted" t-esc="tx.partner_id.phone"/>
+                                                </t>
+                                            </td>
+                                            <td class="text-end">
+                                                <strong t-esc="'Rp {:,.0f}'.format(tx.amount).replace(',', '.')"/>
+                                            </td>
+                                            <td>
+                                                <t t-foreach="tx.sale_order_ids" t-as="so">
+                                                    <a t-attf-href="/my/orders/{{ so.id }}" target="_blank">
+                                                        <code t-esc="so.name"/>
+                                                    </a>
+                                                </t>
+                                            </td>
+                                            <td><small t-esc="tx.create_date"/></td>
+                                            <td class="text-center">
+                                                <form t-attf-action="/shop/payment_verifications/cod/{{ tx.id }}/delivered"
+                                                      method="post" class="d-inline">
+                                                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                                    <button type="submit" class="btn btn-warning btn-sm"
+                                                            onclick="return confirm('Tandai COD ini sudah dikirim?')">
+                                                        <i class="fa fa-truck"/> Delivered
+                                                    </button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="alert alert-info">
+                                <i class="fa fa-info-circle"/> Tidak ada pesanan COD yang menunggu pengiriman.
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- TAB: Verifikasi Terbaru -->
+                    <div class="tab-pane fade" id="tab-recent">
+                        <t t-if="recent_verified">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Ref</th>
+                                            <th>Customer</th>
+                                            <th class="text-end">Nominal</th>
+                                            <th>Status</th>
+                                            <th>Verified By</th>
+                                            <th>Waktu</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr t-foreach="recent_verified" t-as="tx">
+                                            <td><code t-esc="tx.reference"/></td>
+                                            <td><strong t-esc="tx.partner_id.name"/></td>
+                                            <td class="text-end"><strong t-esc="tx._format_rupiah()"/></td>
+                                            <td>
+                                                <span t-if="tx.qris_state == 'paid'"
+                                                      class="badge bg-success">PAID</span>
+                                                <span t-elif="tx.qris_state == 'rejected'"
+                                                      class="badge bg-danger">REJECTED</span>
+                                                <span t-elif="tx.cod_state == 'paid'"
+                                                      class="badge bg-success">COD PAID</span>
+                                                <span t-elif="tx.cod_state == 'delivered'"
+                                                      class="badge bg-warning text-dark">DELIVERED</span>
+                                                <span t-else="" class="badge bg-secondary" t-esc="tx.qris_state or tx.cod_state"/>
+                                            </td>
+                                            <td><small t-esc="tx.qris_admin_verified_by.name or '-'"/></td>
+                                            <td><small t-esc="tx.qris_admin_verified_at or tx.write_date"/></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <div class="alert alert-info">
+                                <i class="fa fa-info-circle"/> Belum ada verifikasi terbaru.
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Reject (untuk input alasan) -->
+            <div class="modal fade" id="rejectModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <form id="reject-form" method="post">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <div class="modal-header bg-danger text-white">
+                                <h5 class="modal-title">Tolak Pembayaran QRIS</h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"/>
+                            </div>
+                            <div class="modal-body">
+                                <p>Ref: <code id="reject-ref"/></p>
+                                <div class="mb-3">
+                                    <label class="form-label">Alasan Penolakan</label>
+                                    <textarea name="reason" class="form-control" rows="3"
+                                              placeholder="Misalnya: nominal tidak sesuai, transfer tidak ditemukan, dll"/>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                <button type="submit" class="btn btn-danger">Tolak Pembayaran</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <script type="text/javascript">
+                (function () {
+                    'use strict';
+                    function initRejectButtons() {
+                        var rejectButtons = document.querySelectorAll('.qris-reject-btn');
+                        var rejectForm = document.getElementById('reject-form');
+                        var rejectRef = document.getElementById('reject-ref');
+                        var modalEl = document.getElementById('rejectModal');
+                        if (!rejectButtons.length || !rejectForm) return;
+                        rejectButtons.forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                var txId = btn.getAttribute('data-tx-id');
+                                var ref = btn.getAttribute('data-ref');
+                                if (rejectRef) rejectRef.textContent = ref || '';
+                                rejectForm.setAttribute('action', '/shop/payment_verifications/' + txId + '/reject');
+                                if (modalEl &amp;&amp; window.bootstrap) {
+                                    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                                    modal.show();
+                                } else if (modalEl) {
+                                    // Fallback: jQuery bootstrap (Odoo &lt;=16 style)
+                                    $(modalEl).modal('show');
+                                }
+                            });
+                        });
+                    }
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', initRejectButtons);
+                    } else {
+                        initRejectButtons();
+                    }
+                })();
+            </script>
+        </t>
+    </template>
+
+    <!-- Halaman: menunggu verifikasi admin (user sudah klik 'saya sudah bayar') -->
+    <template id="qris_pending_verification" name="QRIS Pending Admin Verification">
+        <t t-call="website.layout">
+            <div id="qris-pending-verification" class="container mt-5 mb-5">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-info text-white text-center">
+                                <h4 class="mb-0">Menunggu Verifikasi Admin</h4>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="alert alert-info">
+                                    <strong>Total Pembayaran:</strong>
+                                    <div class="h4 mt-2" t-esc="qris_amount_display"/>
+                                </div>
+                                <div class="mb-3">
+                                    <i class="fa fa-clock-o fa-3x text-info" aria-hidden="true"></i>
+                                </div>
+                                <h5>Terima kasih, pembayaran Anda sedang diverifikasi.</h5>
+                                <p class="text-muted">
+                                    Admin Warung Lakku akan memeriksa pembayaran Anda
+                                    dan mengkonfirmasi pesanan secepatnya.
+                                    Halaman ini akan otomatis berpindah saat pembayaran dikonfirmasi.
+                                </p>
+                                <div class="qris-status-box" id="qris-status-box">
+                                    <div class="spinner-border spinner-border-sm text-info" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span>Menunggu verifikasi admin...</span>
+                                </div>
+                                <p class="small text-muted mt-3">
+                                    Ref: <span t-esc="tx_reference"/>
+                                </p>
+                            </div>
+                            <div class="card-footer text-center">
+                                <a href="/" class="btn btn-primary">Kembali ke Beranda</a>
+                                <a href="/shop" class="btn btn-link">Lanjut Belanja</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Halaman expired -->
+    <template id="qris_expired" name="QRIS Expired">
+        <t t-call="website.layout">
+            <div class="container mt-5 mb-5">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-warning text-white text-center">
+                                <h4 class="mb-0">QRIS Expired</h4>
+                            </div>
+                            <div class="card-body text-center">
+                                <p>QRIS untuk transaksi ini sudah expired.</p>
+                                <p>Silakan ulangi checkout atau hubungi admin.</p>
+                                <a href="/shop/cart" class="btn btn-primary">Kembali ke Cart</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Halaman rejected -->
+    <template id="qris_rejected" name="QRIS Rejected by Admin">
+        <t t-call="website.layout">
+            <div class="container mt-5 mb-5">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-danger text-white text-center">
+                                <h4 class="mb-0">Pembayaran Ditolak</h4>
+                            </div>
+                            <div class="card-body text-center">
+                                <p>Pembayaran Anda ditolak oleh admin.</p>
+                                <t t-if="tx.qris_reject_reason">
+                                    <div class="alert alert-warning">
+                                        <strong>Alasan:</strong>
+                                        <span t-esc="tx.qris_reject_reason"/>
+                                    </div>
+                                </t>
+                                <p>Silakan hubungi admin Warung Lakku untuk informasi lebih lanjut.</p>
+                                <a href="/shop/cart" class="btn btn-primary">Kembali ke Cart</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Halaman cancelled -->
+    <template id="qris_cancelled" name="QRIS Cancelled">
+        <t t-call="website.layout">
+            <div class="container mt-5 mb-5">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-secondary text-white text-center">
+                                <h4 class="mb-0">Transaksi Dibatalkan</h4>
+                            </div>
+                            <div class="card-body text-center">
+                                <p>Transaksi QRIS ini sudah dibatalkan.</p>
+                                <a href="/shop/cart" class="btn btn-primary">Kembali ke Cart</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Halaman COD confirmation -->
+    <template id="cod_payment_page" name="COD Confirmation">
+        <t t-call="website.layout">
+            <div class="container mt-5 mb-5">
+                <div class="row justify-content-center">
+                    <div class="col-12 col-md-6">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-success text-white text-center">
+                                <h4 class="mb-0">Pesanan Diterima - Bayar Ditempat</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-success">
+                                    <strong>Toko akan menghubungi Anda segera.</strong>
+                                </div>
+                                <t t-if="sale_order">
+                                    <p>Order: <strong t-esc="sale_order.name"/></p>
+                                    <p>Total: <strong t-esc="sale_order.amount_total"
+                                                      t-options='{"widget": "monetary", "display_currency": sale_order.currency_id}'/></p>
+                                </t>
+                                <hr/>
+                                <h6>Instruksi Pembayaran:</h6>
+                                <p t-esc="cod_instructions" style="white-space: pre-wrap;"/>
+                            </div>
+                            <div class="card-footer text-center">
+                                <a href="/" class="btn btn-primary">Kembali ke Beranda</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>

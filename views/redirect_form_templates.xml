@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- QRIS redirect form: auto-submit ke /payment/qris_dinamis/<tx_id> -->
+    <template id="qris_redirect_form" name="QRIS Redirect Form">
+        <form t-att-action="'/payment/qris_dinamis/' + str(tx_id)" method="get" id="qris_redirect_form">
+            <input type="hidden" name="tx_id" t-att-value="tx_id"/>
+            <input type="hidden" name="reference" t-att-value="tx_reference"/>
+            <noscript>
+                <input type="submit" value="Lanjutkan ke Pembayaran QRIS"/>
+            </noscript>
+        </form>
+    </template>
+
+    <!-- COD redirect form: auto-submit ke /payment/cod/<tx_id> -->
+    <template id="cod_redirect_form" name="COD Redirect Form">
+        <form t-att-action="'/payment/cod/' + str(tx_id)" method="get" id="cod_redirect_form">
+            <input type="hidden" name="tx_id" t-att-value="tx_id"/>
+            <input type="hidden" name="reference" t-att-value="tx_reference"/>
+            <noscript>
+                <input type="submit" value="Konfirmasi Pesanan COD"/>
+            </noscript>
+        </form>
+    </template>
+</odoo>

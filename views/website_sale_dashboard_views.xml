@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Extend website_sale_dashboard kanban view (id=3253) untuk add tombol
+         Verify/Reject QRIS Payment pada order yang punya QRIS pending_verification. -->
+    <record id="website_order_kanban_qris_verify" model="ir.ui.view">
+        <field name="name">website.sale.dashboard.kanban.qris.verify</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="website_sale_dashboard.view_website_order_kanban"/>
+        <field name="arch" type="xml">
+            <!-- Inject field payment_method_code & qris_state supaya bisa dipakai di kanban -->
+            <xpath expr="//field[@name='website_order_stage']" position="after">
+                <field name="payment_method_code"/>
+                <field name="qris_state"/>
+            </xpath>
+            <!-- Tambah info badge + tombol verify/reject di kanban card.
+                 Inject setelah div.text-muted (partner_id) yang sudah ada di card. -->
+            <xpath expr="//div[hasclass('o_kanban_record_bottom')]" position="before">
+                <div t-if="record.payment_method_code.raw_value == 'qris_dinamis'"
+                     class="text-muted small mb-2 d-flex align-items-center justify-content-between">
+                    <span>
+                        QRIS:
+                        <span t-if="record.qris_state.raw_value == 'pending'"
+                              class="badge bg-secondary">Belum konfirmasi</span>
+                        <span t-if="record.qris_state.raw_value == 'pending_verification'"
+                              class="badge bg-warning text-dark">Perlu verifikasi</span>
+                        <span t-if="record.qris_state.raw_value == 'paid'"
+                              class="badge bg-success">Paid</span>
+                        <span t-if="record.qris_state.raw_value == 'rejected'"
+                              class="badge bg-danger">Rejected</span>
+                        <span t-if="record.qris_state.raw_value == 'expired'"
+                              class="badge bg-dark">Expired</span>
+                        <span t-if="record.qris_state.raw_value == 'cancelled'"
+                              class="badge bg-secondary">Cancelled</span>
+                    </span>
+                </div>
+            </xpath>
+            <!-- Tambah tombol Verify & Reject di bottom kanan saat QRIS pending_verification -->
+            <xpath expr="//div[hasclass('o_kanban_record_bottom')]" position="inside">
+                <div class="oe_kanban_bottom_right ms-auto"
+                     t-if="record.payment_method_code.raw_value == 'qris_dinamis' and record.qris_state.raw_value == 'pending_verification'">
+                    <button type="object" name="action_wsd_verify_qris_payment"
+                            class="btn btn-sm btn-success"
+                            confirm="Konfirmasi pembayaran QRIS ini VALID? Pesanan akan diproses.">
+                        Verify Payment
+                    </button>
+                    <button type="object" name="action_wsd_reject_qris_payment"
+                            class="btn btn-sm btn-danger ms-1"
+                            confirm="Tolak pembayaran QRIS ini? Sale order akan di-cancel.">
+                        Reject
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Extend sale.order form: add verify/reject buttons di header untuk admin -->
+    <record id="sale_order_form_qris_verify_buttons" model="ir.ui.view">
+        <field name="name">sale.order.form.qris.verify.buttons</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_wsd_verify_qris_payment" type="object"
+                        string="Verify QRIS Payment"
+                        class="btn-primary"
+                        invisible="payment_method_code != 'qris_dinamis' or qris_state not in ('pending', 'pending_verification')"
+                        confirm="Konfirmasi pembayaran QRIS ini valid?"/>
+                <button name="action_wsd_reject_qris_payment" type="object"
+                        string="Reject QRIS Payment"
+                        class="btn-danger"
+                        invisible="payment_method_code != 'qris_dinamis' or qris_state not in ('pending', 'pending_verification')"
+                        confirm="Tolak pembayaran QRIS ini? Sale order akan di-cancel."/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
