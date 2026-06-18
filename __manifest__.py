@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Website Sale Payment QRIS Dinamis & COD',
-    'version': '17.0.2.1.0',
+    'version': '17.0.2.1.1',
     'category': 'Website/Website',
     'summary': 'Bayar Ditempat (COD) + QRIS Dinamis dengan verifikasi manual admin via website_sale_dashboard',
     'description': """
